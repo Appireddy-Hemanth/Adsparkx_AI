@@ -1,7 +1,7 @@
 from src.agent.state import AgentState
 from src.utils.gemini_client import RateLimitedGeminiClient
 
-def output_formatting_node(state: AgentState) -> dict:
+async def output_formatting_node(state: AgentState) -> dict:
     messages = list(state.get("messages", []))
     raw_response = state.get("response", "")
     

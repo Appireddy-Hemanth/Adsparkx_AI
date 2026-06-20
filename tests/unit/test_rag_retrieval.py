@@ -15,37 +15,41 @@ def mock_collection():
 
 class TestRAGRetrieval:
 
+    @pytest.mark.asyncio
     @patch("src.rag.retriever.chromadb.PersistentClient")
-    def test_retriever_returns_results_for_known_query(self, mock_client, mock_collection):
+    async def test_retriever_returns_results_for_known_query(self, mock_client, mock_collection):
         # Setup mock client
         mock_client.return_value.get_collection.return_value = mock_collection
         
         retriever = KBRetriever()
-        chunks = retriever.retrieve("how to reset password", top_k=3)
+        chunks = await retriever.retrieve("how to reset password", top_k=3)
         assert len(chunks) >= 1
 
+    @pytest.mark.asyncio
     @patch("src.rag.retriever.chromadb.PersistentClient")
-    def test_retriever_returns_confidence_score(self, mock_client, mock_collection):
+    async def test_retriever_returns_confidence_score(self, mock_client, mock_collection):
         mock_client.return_value.get_collection.return_value = mock_collection
         
         retriever = KBRetriever()
-        chunks = retriever.retrieve("OAuth token expiry", top_k=3)
+        chunks = await retriever.retrieve("OAuth token expiry", top_k=3)
         assert all(hasattr(c, "score") for c in chunks)
         assert all(0.0 <= c.score <= 1.0 for c in chunks)
 
+    @pytest.mark.asyncio
     @patch("src.rag.retriever.chromadb.PersistentClient")
-    def test_chunk_has_required_metadata(self, mock_client, mock_collection):
+    async def test_chunk_has_required_metadata(self, mock_client, mock_collection):
         mock_client.return_value.get_collection.return_value = mock_collection
         
         retriever = KBRetriever()
-        chunks = retriever.retrieve("billing refund policy", top_k=1)
+        chunks = await retriever.retrieve("billing refund policy", top_k=1)
         assert len(chunks) >= 1
         c = chunks[0]
         assert c.metadata.get("source") is not None
         assert c.metadata.get("chunk_id") is not None
 
+    @pytest.mark.asyncio
     @patch("src.rag.retriever.chromadb.PersistentClient")
-    def test_irrelevant_query_returns_low_confidence(self, mock_client):
+    async def test_irrelevant_query_returns_low_confidence(self, mock_client):
         # Mock poor distance match (e.g. distance = 1.8)
         poor_collection = MagicMock()
         poor_collection.query.return_value = {
@@ -56,14 +60,15 @@ class TestRAGRetrieval:
         mock_client.return_value.get_collection.return_value = poor_collection
         
         retriever = KBRetriever()
-        chunks = retriever.retrieve("best pizza recipe in Rome", top_k=3)
+        chunks = await retriever.retrieve("best pizza recipe in Rome", top_k=3)
         if chunks:
             assert chunks[0].score < 0.60  # Low relevance expected since distance is 1.8 (score = 1 - 1.8 = -0.8 clamped or raw)
 
+    @pytest.mark.asyncio
     @patch("src.rag.retriever.chromadb.PersistentClient")
-    def test_top_k_respected(self, mock_client, mock_collection):
+    async def test_top_k_respected(self, mock_client, mock_collection):
         mock_client.return_value.get_collection.return_value = mock_collection
         
         retriever = KBRetriever()
-        chunks = retriever.retrieve("API authentication", top_k=2)
+        chunks = await retriever.retrieve("API authentication", top_k=2)
         assert len(chunks) <= 2

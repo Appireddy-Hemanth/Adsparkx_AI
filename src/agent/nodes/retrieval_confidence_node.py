@@ -1,6 +1,6 @@
 from src.agent.state import AgentState
 
-def retrieval_confidence_node(state: AgentState) -> dict:
+async def retrieval_confidence_node(state: AgentState) -> dict:
     chunks = state.get("retrieved_chunks", [])
     
     retrieval_confidence = 0.0

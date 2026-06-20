@@ -5,7 +5,7 @@ from src.utils.logger import logger
 
 _escalation_checker_instance = None
 
-def escalation_evaluation_node(state: AgentState) -> dict:
+async def escalation_evaluation_node(state: AgentState) -> dict:
     global _escalation_checker_instance
     if _escalation_checker_instance is None:
         _escalation_checker_instance = EscalationChecker()
@@ -58,7 +58,7 @@ def escalation_evaluation_node(state: AgentState) -> dict:
 
 _handoff_builder_instance = None
 
-def human_handoff_node(state: AgentState) -> dict:
+async def human_handoff_node(state: AgentState) -> dict:
     # Only perform handoff if escalation is required
     if not state.get("escalate", False):
         return {}

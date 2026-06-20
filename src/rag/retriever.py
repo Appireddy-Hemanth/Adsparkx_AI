@@ -1,4 +1,5 @@
 import os
+import asyncio
 from dataclasses import dataclass
 from src.config.settings import settings
 from src.rag.embeddings import get_embeddings, GeminiChromaEmbeddingFunction
@@ -21,6 +22,7 @@ class RetrievedChunk:
 
 _chroma_client = None
 _chroma_collection = None
+_cross_encoder_instance = None
 
 class KBRetriever:
     def __init__(self):
@@ -44,21 +46,21 @@ class KBRetriever:
         self.collection = _chroma_collection
 
         # Lazy load CrossEncoder to minimize startup latency
-        self._reranker = None
+        pass
 
     @property
     def reranker(self):
-        global _HAS_CROSS_ENCODER
-        if _HAS_CROSS_ENCODER and self._reranker is None:
+        global _HAS_CROSS_ENCODER, _cross_encoder_instance
+        if _HAS_CROSS_ENCODER and _cross_encoder_instance is None:
             try:
                 logger.info("Loading CrossEncoder (cross-encoder/ms-marco-MiniLM-L-6-v2) for reranking...")
-                self._reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+                _cross_encoder_instance = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
             except Exception as e:
                 logger.error(f"Failed to load CrossEncoder reranker: {e}. Falling back to default Chroma scores.")
                 _HAS_CROSS_ENCODER = False
-        return self._reranker
+        return _cross_encoder_instance
 
-    def retrieve(self, query: str, top_k: int = 5) -> list[RetrievedChunk]:
+    async def retrieve(self, query: str, top_k: int = 5) -> list[RetrievedChunk]:
         global _chroma_collection
         if not self.collection:
             # Re-attempt loading collection
@@ -77,7 +79,8 @@ class KBRetriever:
         # Query ChromaDB for top_k * 2 candidates (for reranking)
         candidates_to_fetch = top_k * 2 if _HAS_CROSS_ENCODER else top_k
         try:
-            results = self.collection.query(
+            results = await asyncio.to_thread(
+                self.collection.query,
                 query_texts=[query],
                 n_results=candidates_to_fetch
             )
@@ -115,7 +118,7 @@ class KBRetriever:
         if _HAS_CROSS_ENCODER and self.reranker and len(chunks) > 1:
             try:
                 pairs = [[query, chunk.text] for chunk in chunks]
-                rerank_scores = self.reranker.predict(pairs)
+                rerank_scores = await asyncio.to_thread(self.reranker.predict, pairs)
                 
                 # Pair and sort by rerank score descending
                 for chunk, r_score in zip(chunks, rerank_scores):

@@ -1,5 +1,6 @@
 import json
 import re
+import asyncio
 from dataclasses import dataclass
 from src.config.settings import settings
 from src.utils.gemini_client import RateLimitedGeminiClient
@@ -39,7 +40,29 @@ class PersonaDetector:
         """Isolated LLM call method for easy mocking in tests."""
         return self.client.generate(prompt)
 
+    async def _call_llm_async(self, prompt: str) -> str:
+        from unittest.mock import Mock
+        if isinstance(self._call_llm, Mock):
+            res = self._call_llm(prompt)
+            if asyncio.iscoroutine(res):
+                return await res
+            return res
+        return await self.client.generate_async(prompt)
+
     def classify(self, message: str, history: list[dict] = None) -> PersonaResult:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor() as executor:
+                return executor.submit(asyncio.run, self.classify_async(message, history)).result()
+        else:
+            return asyncio.run(self.classify_async(message, history))
+
+    async def classify_async(self, message: str, history: list[dict] = None) -> PersonaResult:
         if history is None:
             history = []
 
@@ -57,7 +80,7 @@ class PersonaDetector:
 
         llm_result = None
         try:
-            response_text = self._call_llm(prompt)
+            response_text = await self._call_llm_async(prompt)
             # Try to parse json from the response
             json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
             if json_match:

@@ -78,6 +78,27 @@ class RateLimitedGeminiClient:
 
         self._request_timestamps.append(time.time())
 
+    async def _enforce_rpm_async(self):
+        now = time.time()
+        window = 60.0
+        rpm_limit = self.RPM_LIMITS.get(self.model_name, 10)
+        
+        # Remove timestamps older than 60s
+        while self._request_timestamps and now - self._request_timestamps[0] > window:
+            self._request_timestamps.popleft()
+            
+        if len(self._request_timestamps) >= rpm_limit:
+            sleep_time = window - (now - self._request_timestamps[0]) + 0.1
+            if sleep_time > 0:
+                logger.warning(f"[RATE LIMIT] RPM limit hit for {self.model_name}. Sleeping {sleep_time:.1f}s (async)")
+                await asyncio.sleep(sleep_time)
+                # Recalculate now after sleeping
+                now = time.time()
+                while self._request_timestamps and now - self._request_timestamps[0] > window:
+                    self._request_timestamps.popleft()
+
+        self._request_timestamps.append(time.time())
+
     def generate(self, prompt: str, **kwargs) -> str:
         # Check daily limit (e.g. 1500 calls max on free tier per day)
         if self._daily_count >= 1500:
@@ -98,6 +119,34 @@ class RateLimitedGeminiClient:
                     backoff = self.BASE_BACKOFF * (2 ** attempt)
                     logger.warning(f"[429] Rate limited. Retry {attempt+1}/{self.MAX_RETRIES} in {backoff}s. Error: {e}")
                     time.sleep(backoff)
+                    if attempt == self.MAX_RETRIES - 1:
+                        raise RuntimeError(
+                            "Gemini API daily quota exhausted. Resets at midnight Pacific Time. "
+                            "Consider upgrading to Tier 1 for 1,000 RPD / 150 RPM."
+                        ) from e
+                else:
+                    raise
+
+    async def generate_async(self, prompt: str, **kwargs) -> str:
+        # Check daily limit (e.g. 1500 calls max on free tier per day)
+        if self._daily_count >= 1500:
+            raise RuntimeError(
+                "Gemini API daily quota exhausted. Resets at midnight Pacific Time. "
+                "Consider upgrading to Tier 1 for 1,000 RPD / 150 RPM."
+            )
+
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                await self._enforce_rpm_async()
+                response = await self.model.generate_content_async(prompt, **kwargs)
+                self._daily_count += 1
+                return response.text
+            except Exception as e:
+                err_str = str(e).lower()
+                if "429" in err_str or "quota" in err_str or "resource_exhausted" in err_str:
+                    backoff = self.BASE_BACKOFF * (2 ** attempt)
+                    logger.warning(f"[429] Rate limited. Retry {attempt+1}/{self.MAX_RETRIES} in {backoff}s. Error: {e}")
+                    await asyncio.sleep(backoff)
                     if attempt == self.MAX_RETRIES - 1:
                         raise RuntimeError(
                             "Gemini API daily quota exhausted. Resets at midnight Pacific Time. "

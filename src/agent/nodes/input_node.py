@@ -1,7 +1,7 @@
 import uuid
 from src.agent.state import AgentState
 
-def input_node(state: AgentState) -> dict:
+async def input_node(state: AgentState) -> dict:
     current_message = state.get("current_message", "").strip()
     
     # Initialize list fields if not present

@@ -2,11 +2,11 @@ from src.config.settings import settings
 from src.rag.retriever import KBRetriever
 from src.agent.state import AgentState
 
-def retrieval_node(state: AgentState) -> dict:
+async def retrieval_node(state: AgentState) -> dict:
     current_message = state.get("current_message", "")
     
     retriever = KBRetriever()
-    chunks = retriever.retrieve(current_message, top_k=settings.top_k_retrieval)
+    chunks = await retriever.retrieve(current_message, top_k=settings.top_k_retrieval)
     
     chunks_list = []
     if chunks:

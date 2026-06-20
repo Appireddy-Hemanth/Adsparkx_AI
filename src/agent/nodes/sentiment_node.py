@@ -4,7 +4,7 @@ from src.utils.logger import logger
 
 _sentiment_analyzer_instance = None
 
-def sentiment_node(state: AgentState) -> dict:
+async def sentiment_node(state: AgentState) -> dict:
     global _sentiment_analyzer_instance
     current_message = state.get("current_message", "")
     sentiment_scores = list(state.get("sentiment_scores", []))

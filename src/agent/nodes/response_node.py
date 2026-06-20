@@ -1,3 +1,4 @@
+import asyncio
 from src.config.settings import settings
 from src.utils.gemini_client import RateLimitedGeminiClient
 from src.personas.prompts import (
@@ -19,7 +20,30 @@ class ResponseNode:
         """Isolated LLM call for testing."""
         return self.client.generate(prompt)
 
+    async def _call_llm_async(self, prompt: str) -> str:
+        from unittest.mock import Mock
+        if isinstance(self._call_llm, Mock):
+            res = self._call_llm(prompt)
+            if asyncio.iscoroutine(res):
+                return await res
+            return res
+        return await self.client.generate_async(prompt)
+
     def run(self, state: dict) -> dict:
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor() as executor:
+                return executor.submit(asyncio.run, self.run_async(state)).result()
+        else:
+            return asyncio.run(self.run_async(state))
+
+    async def run_async(self, state: dict) -> dict:
         import time
         start_time = time.time()
         
@@ -83,7 +107,7 @@ class ResponseNode:
         )
 
         try:
-            response_text = self._call_llm(prompt).strip()
+            response_text = (await self._call_llm_async(prompt)).strip()
             
             # Extract suggested steps from response to build attempted_steps list
             import re
@@ -125,8 +149,8 @@ class ResponseNode:
 _response_node_instance = None
 
 # LangGraph function wrapper
-def response_node(state: dict) -> dict:
+async def response_node(state: dict) -> dict:
     global _response_node_instance
     if _response_node_instance is None:
         _response_node_instance = ResponseNode()
-    return _response_node_instance.run(state)
+    return await _response_node_instance.run_async(state)

@@ -4,7 +4,7 @@ from src.utils.logger import logger
 
 _persona_detector_instance = None
 
-def persona_node(state: AgentState) -> dict:
+async def persona_node(state: AgentState) -> dict:
     global _persona_detector_instance
     current_message = state.get("current_message", "")
     history = state.get("messages", [])[:-1]  # Exclude the current message
@@ -13,7 +13,7 @@ def persona_node(state: AgentState) -> dict:
         _persona_detector_instance = PersonaDetector()
     detector = _persona_detector_instance
     
-    result = detector.classify(current_message, history=history)
+    result = await detector.classify_async(current_message, history=history)
     
     logger.info(
         f"[PERSONA] Session={state.get('session_id')} | Msg='{current_message[:30]}...' | "
