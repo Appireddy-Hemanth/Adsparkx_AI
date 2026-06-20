@@ -1,0 +1,20 @@
+NovaSuite Billing & Subscription FAQ
+
+1. Invoice Cycles & Payment Methods
+NovaSuite charges customers on a recurring monthly or annual basis, depending on the plan selected during signup.
+- Billing Cycle: Monthly subscriptions are billed on the same calendar day each month (e.g., if you signed up on the 15th, you are billed on the 15th). Annual plans are billed on the anniversary of the signup date.
+- Payment Methods: We accept major credit cards (Visa, Mastercard, American Express), PayPal, and wire transfers for enterprise clients.
+- Invoices: All invoices are sent to the billing email address configured in the Subscription settings and can also be downloaded as PDF files directly from the billing section of the Admin Dashboard.
+
+2. Refund Policy
+NovaSuite offers a 14-day money-back guarantee for all new subscriptions.
+- Monthly Subscriptions: Requests for refunds must be made within 14 days of the initial subscription purchase. Subsequent monthly renewals are non-refundable.
+- Annual Subscriptions: Requests for refunds must be made within 14 days of the initial purchase or renewal date.
+- Processing Refunds: Approved refunds will be credited back to the original payment method within 5 to 10 business days.
+- Disputes: If you believe you were charged in error, please contact billing@novasuite.com before filing a charge dispute with your credit card company. Filing a dispute or chargeback will result in the immediate suspension of your NovaSuite account.
+
+3. Plan Upgrades & Downgrades
+You can change your plan at any time through the Admin Console:
+- Upgrades: Upgrading to a higher plan takes effect immediately. The billing system will calculate a pro-rated charge for the remainder of the current billing cycle.
+- Downgrades: Downgrades take effect at the end of the current billing cycle. No pro-rated refunds are given for downgrades.
+- Seat Management: Adding seats to your team plan will incur immediate pro-rated charges for the current billing cycle. Removing seats takes effect at the next renewal date.

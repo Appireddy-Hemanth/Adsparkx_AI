@@ -1,0 +1,19 @@
+NovaSuite Account Lockout Troubleshooting Guide
+
+1. Why is My Account Locked?
+NovaSuite employs strict security measures to protect user data from unauthorized access. An account lockout is typically triggered by:
+- Brute-Force Protection: Five (5) consecutive failed login attempts within a 15-minute window. This automatically locks the account to prevent password guessing attacks.
+- Administrative Lock: A NovaSuite Administrator in your organization has manually locked your account via the Admin Dashboard.
+- Compliance/Security Review: NovaSuite Security has locked the account due to suspicious activity, such as logins from geographically impossible locations within a short timeframe.
+
+2. Unlock Procedures
+Depending on the cause of the lock, follow these resolution steps:
+- Temporary Lock (Brute-Force): This lock lasts for exactly thirty (30) minutes. You can wait for the lockout timer to expire and try logging in again with the correct password.
+- Reset Password: If you cannot remember your password, you can trigger a password reset by clicking "Forgot Password" on the login page. A successful password reset will automatically clear the brute-force lockout status.
+- Admin Unlock: If your account has been administratively locked, you must contact your organization's NovaSuite Administrator. The admin can unlock your account by navigating to User Management, selecting your user profile, and clicking "Unlock Account".
+- Security Lock: If your account was locked by NovaSuite Security, you must open a ticket with support@novasuite.com and verify your identity before the account can be re-activated.
+
+3. Best Practices to Avoid Lockout
+- Use a password manager to avoid typing incorrect passwords.
+- Verify that your caps-lock key is off before logging in.
+- If you change your password, update it immediately in all automated scripts, browser autofills, and API clients to avoid rapid failed login attempts.

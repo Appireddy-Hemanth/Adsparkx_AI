@@ -1,0 +1,24 @@
+NovaSuite API Authentication & Authorization Error Guide
+
+1. Overview
+All requests to the NovaSuite REST API must be authenticated using a valid Bearer Token in the HTTP Authorization header. Authentication failures will result in HTTP 401 or 403 error status codes. Understanding these errors is critical for integration developers.
+
+2. HTTP 401 Unauthorized Errors
+A 401 error indicates that the request lacked valid credentials. This usually occurs under the following circumstances:
+- Missing Header: The HTTP Authorization header was not sent with the request.
+- Invalid Format: The header was sent but did not use the "Bearer <token>" format.
+- Expired Token: The JWT token has expired. Access tokens are valid for exactly 60 minutes.
+- Revoked Token: The API key or token has been revoked by an administrator or due to a security rotation event.
+To resolve a 401 error:
+- Verify that your token is actively copied and formatted correctly.
+- Implement token refresh logic in your code. When a 401 is received, use your OAuth2 refresh token to request a new access token from the `/oauth/token` endpoint.
+
+3. HTTP 403 Forbidden Errors
+A 403 error indicates that the token is valid, but the authenticated user or application does not have permission to access the requested resource. Common causes:
+- Insufficient Scopes: The token was generated with limited scopes (e.g., `read:users`) but the request tried to perform a write operation (e.g., `POST /api/users`).
+- Role-Based Access Control (RBAC): The user's role in NovaSuite (e.g., Member) does not allow access to admin-only API endpoints (e.g., `/api/billing`).
+- IP Restriction: The organization has enabled IP Whitelisting, and the request originated from an unauthorized IP address.
+To resolve a 403 error, check the JSON response body. It will detail the missing scope or role required.
+
+4. HTTP 429 Too Many Requests
+NovaSuite enforces rate limits to ensure platform stability. If you exceed the rate limits (detailed in rate_limiting_policy.md), the API will return a 429 error. Your client must inspect the `Retry-After` header to know how many seconds to wait before retrying the request.
