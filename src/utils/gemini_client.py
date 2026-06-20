@@ -19,10 +19,18 @@ class RateLimitedGeminiClient:
     _shared_timestamps = {}
     _shared_daily_counts = {}
 
+    _configured = False
+    _models = {}
+
     def __init__(self, model_name: str, api_key: str):
-        genai.configure(api_key=api_key)
         self.model_name = model_name
-        self.model = genai.GenerativeModel(model_name)
+        if not RateLimitedGeminiClient._configured:
+            genai.configure(api_key=api_key)
+            RateLimitedGeminiClient._configured = True
+            
+        if model_name not in RateLimitedGeminiClient._models:
+            RateLimitedGeminiClient._models[model_name] = genai.GenerativeModel(model_name)
+        self.model = RateLimitedGeminiClient._models[model_name]
         
         # Initialize shared deque for this model if not exists
         if model_name not in RateLimitedGeminiClient._shared_timestamps:

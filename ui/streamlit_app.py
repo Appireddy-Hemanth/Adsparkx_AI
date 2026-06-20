@@ -30,13 +30,13 @@ st.markdown("""
 :root {
     --bg-base: #121212;
     --bg-card: #181818;
-    --bg-elevated: #282828;
+    --bg-elevated: #1f1f1f;
     --accent-green: #1DB954;
     --accent-green-hover: #1ed760;
     --text-primary: #FFFFFF;
     --text-secondary: #B3B3B3;
     --text-muted: #6A6A6A;
-    --border-subtle: rgba(255,255,255,0.1);
+    --border-subtle: rgba(255,255,255,0.06);
     --radius: 8px;
     --spacing-xs: 4px;
     --spacing-sm: 8px;
@@ -45,10 +45,34 @@ st.markdown("""
     --spacing-xl: 32px;
 }
 
-/* Set dark canvas */
+/* Set dark canvas with green radial glow */
 .stApp {
     background-color: var(--bg-base);
+    background-image: radial-gradient(circle at top left, rgba(29, 185, 84, 0.07) 0%, transparent 600px);
+    background-attachment: fixed;
     color: var(--text-primary);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: var(--bg-base);
+}
+::-webkit-scrollbar-thumb {
+    background: var(--border-subtle);
+    border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+/* Animation and fade-in transitions for chat message rendering */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .stChatMessage {
@@ -57,10 +81,48 @@ st.markdown("""
     border: 1px solid var(--border-subtle) !important;
     padding: var(--spacing-md) !important;
     margin-bottom: var(--spacing-sm) !important;
+    animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    box-shadow: rgba(0, 0, 0, 0.3) 0px 4px 12px;
+}
+
+/* Assistant specific style accent */
+.stChatMessage[data-testid="stChatMessage"]:nth-child(even) {
+    border-left: 3px solid var(--accent-green) !important;
+}
+
+/* Markdown styling inside Chat Messages */
+.stChatMessage p, .stChatMessage li {
+    font-size: 15px !important;
+    line-height: 1.6 !important;
+    letter-spacing: 0.2px !important;
+}
+
+.stChatMessage h1, .stChatMessage h2, .stChatMessage h3 {
+    color: var(--accent-green) !important;
+    font-weight: 700 !important;
+    margin-top: 14px !important;
+    margin-bottom: 8px !important;
+}
+
+.stChatMessage code {
+    background-color: var(--bg-elevated) !important;
+    color: var(--accent-green) !important;
+    border-radius: 4px !important;
+    padding: 2px 6px !important;
+    font-family: 'Courier New', Courier, monospace !important;
+    font-size: 13.5px !important;
+}
+
+.stChatMessage pre {
+    background-color: #0b0b0b !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: var(--radius) !important;
+    padding: var(--spacing-md) !important;
 }
 
 .stSidebar {
     background-color: var(--bg-card) !important;
+    border-right: 1px solid var(--border-subtle) !important;
 }
 
 /* Persona badges */
@@ -74,6 +136,7 @@ st.markdown("""
     letter-spacing: 1px;
     display: inline-block;
     margin-bottom: 8px;
+    box-shadow: rgba(29, 185, 84, 0.2) 0px 4px 12px;
 }
 .badge-frustrated {
     background: #E22134;
@@ -85,6 +148,7 @@ st.markdown("""
     letter-spacing: 1px;
     display: inline-block;
     margin-bottom: 8px;
+    box-shadow: rgba(226, 33, 52, 0.2) 0px 4px 12px;
 }
 .badge-executive {
     background: #F59B23;
@@ -96,24 +160,27 @@ st.markdown("""
     letter-spacing: 1px;
     display: inline-block;
     margin-bottom: 8px;
+    box-shadow: rgba(245, 155, 35, 0.2) 0px 4px 12px;
 }
 
 /* Source cards */
 .source-card {
     background: var(--bg-elevated);
-    border-left: 4px solid var(--accent-green);
+    border-left: 3px solid var(--accent-green);
     padding: var(--spacing-md);
     border-radius: var(--radius);
     margin: var(--spacing-sm) 0;
+    border: 1px solid rgba(255,255,255,0.02);
 }
 
 /* Escalation alert */
 .escalation-alert {
-    background: rgba(226, 33, 52, 0.15);
+    background: rgba(226, 33, 52, 0.12);
     border: 1px solid #E22134;
     border-radius: var(--radius);
     padding: var(--spacing-md);
     margin-bottom: var(--spacing-lg);
+    box-shadow: rgba(226, 33, 52, 0.15) 0px 4px 16px;
 }
 
 /* Rate limit indicators */
@@ -134,6 +201,14 @@ st.markdown("""
     padding: var(--spacing-md);
     text-align: center;
     margin-bottom: var(--spacing-md);
+    border: 1px solid rgba(255,255,255,0.02);
+    box-shadow: rgba(0, 0, 0, 0.2) 0px 4px 12px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: rgba(0, 0, 0, 0.4) 0px 8px 24px;
+    border-color: rgba(255,255,255,0.05);
 }
 .metric-value {
     font-size: 28px;
@@ -141,17 +216,39 @@ st.markdown("""
     color: var(--accent-green);
 }
 .metric-label {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 1px;
+    margin-bottom: 4px;
+}
+
+/* Custom stChatInput Container styling */
+div[data-testid="stChatInput"] {
+    background-color: transparent !important;
+}
+div[data-testid="stChatInput"] textarea {
+    background-color: var(--bg-card) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: 500px !important;
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+}
+div[data-testid="stChatInput"] textarea:focus {
+    border-color: var(--accent-green) !important;
+    box-shadow: rgba(29, 185, 84, 0.15) 0px 0px 0px 2px !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# App Title banner
-st.markdown("<h1 style='color: #FFFFFF; font-weight: 800; letter-spacing: -1px;'>NovaSuite Support Hub</h1>", unsafe_allow_html=True)
-st.markdown("<p style='color: #B3B3B3; font-size: 16px;'>Persona-Adaptive Customer Support Agent</p>", unsafe_allow_html=True)
+# App Title Banner with Spotify Gradient style
+st.markdown("""
+<div style='background: linear-gradient(135deg, #1DB954 0%, #121212 100%); padding: 32px; border-radius: 12px; margin-bottom: 28px; border: 1px solid rgba(255,255,255,0.04); box-shadow: rgba(0,0,0,0.4) 0px 8px 24px;'>
+    <h1 style='color: #FFFFFF; font-weight: 900; margin: 0; font-size: 36px; letter-spacing: -1.5px; line-height: 1.1;'>NovaSuite Support Hub</h1>
+    <p style='color: rgba(255,255,255,0.85); font-size: 15px; margin: 6px 0 0 0; font-weight: 500; letter-spacing: 0.5px;'>Persona-Adaptive AI Customer Support Agent</p>
+</div>
+""", unsafe_allow_html=True)
 
 # Lazy build graph
 @st.cache_resource
@@ -195,7 +292,7 @@ for msg in agent_state["messages"]:
     content = msg.get("content")
     
     with st.chat_message(role):
-        st.write(content)
+        st.markdown(content)
         
         # Render turn-specific metadata for assistant replies
         if role == "assistant":
@@ -203,10 +300,16 @@ for msg in agent_state["messages"]:
             persona_conf = msg.get("persona_confidence", 0.0)
             retrieved_chunks = msg.get("retrieved_chunks", [])
             
-            if persona:
-                render_persona_badge(persona, persona_conf)
-            if retrieved_chunks:
-                render_sources(retrieved_chunks)
+            if persona or retrieved_chunks:
+                st.markdown("<div style='margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;'></div>", unsafe_allow_html=True)
+                
+                col_b, col_s = st.columns([1, 2])
+                with col_b:
+                    if persona:
+                        render_persona_badge(persona, persona_conf)
+                with col_s:
+                    if retrieved_chunks:
+                        render_sources(retrieved_chunks)
 
 # Handle Escalation panel if currently escalated
 if agent_state.get("escalate"):
@@ -251,6 +354,7 @@ if user_input := st.chat_input("How can I assist you with NovaSuite today?"):
                     messages[-1]["persona"] = updated_state.get("persona", "UNKNOWN")
                     messages[-1]["persona_confidence"] = updated_state.get("persona_confidence", 0.0)
                     messages[-1]["retrieved_chunks"] = updated_state.get("retrieved_chunks", [])
+                    messages[-1]["response_time"] = updated_state.get("response_time", 0.0)
                 
                 # Save back to session state
                 st.session_state["agent_state"] = updated_state

@@ -20,13 +20,20 @@ class ResponseNode:
         return self.client.generate(prompt)
 
     def run(self, state: dict) -> dict:
+        import time
+        start_time = time.time()
+        
         retrieved_chunks = state.get("retrieved_chunks", [])
         retrieval_confidence = state.get("retrieval_confidence", 0.0)
 
-        # Anti-hallucination check: if no chunks found or low confidence, escalate
+        # Anti-hallucination check: if no chunks found or low confidence, refuse factual generation
         if not retrieved_chunks or retrieval_confidence < settings.low_confidence_threshold:
-            logger.info("RAG Retrieval confidence too low or no chunks found. Escalating to human agent.")
+            logger.info("RAG Retrieval confidence too low or no chunks found. Setting fallback response.")
+            elapsed_time = time.time() - start_time
             return {
+                "response": "I don't have enough information in the knowledge base to answer this accurately.",
+                "attempted_steps": list(state.get("attempted_steps", [])),
+                "response_time": elapsed_time,
                 "escalate": True,
                 "escalation_reason": "no_relevant_kb_content"
             }
@@ -46,43 +53,80 @@ class ResponseNode:
         for idx, chunk in enumerate(retrieved_chunks):
             context_str += f"[{idx+1}] Source: {chunk.get('source', 'unknown')} | Section: {chunk.get('section', 'General')}\n{chunk.get('text', '')}\n\n"
 
+        # Format conversation history (excluding the current user message at the end)
+        history_str = ""
+        prev_messages = state.get("messages", [])[:-1]
+        for idx, turn in enumerate(prev_messages[-6:]):
+            role = turn.get("role", "unknown").upper()
+            content = turn.get("content", "")
+            history_str += f"{role}: {content}\n"
+        if not history_str:
+            history_str = "No prior history."
+
+        # Format attempted steps
+        attempted_steps = state.get("attempted_steps", [])
+        attempted_str = "\n".join(f"- {step}" for step in attempted_steps) if attempted_steps else "None."
+
+        # Reinforce alternative solutions if there are attempted steps
+        user_message_text = state.get("current_message", "")
+        if attempted_steps:
+            user_message_text += (
+                f"\n\n(Important Instruction: The user has already tried the following troubleshooting steps: {', '.join(attempted_steps)}. "
+                "Do NOT repeat these steps or suggest them again. You must offer alternative steps or suggest checking other configs if available in the context.)"
+            )
+
         prompt = system_prompt_tmpl.format(
             context=context_str,
-            user_message=state.get("current_message", "")
+            user_message=user_message_text,
+            history=history_str,
+            attempted_steps=attempted_str
         )
 
         try:
             response_text = self._call_llm(prompt).strip()
             
             # Extract suggested steps from response to build attempted_steps list
-            # We look for numbered list patterns or bullet points
             import re
             steps = re.findall(r"(?:^\d+\.\s+|^-\s+|\*\s+)(.+)$", response_text, re.MULTILINE)
-            attempted_steps = list(state.get("attempted_steps", []))
+            attempted_steps_list = list(state.get("attempted_steps", []))
             for step in steps:
-                # Strip potential source citations from the step text
                 clean_step = re.sub(r"\s*\[Source:\s*[^\]]+\]", "", step).strip()
-                if clean_step and clean_step not in attempted_steps:
-                    attempted_steps.append(clean_step)
+                if clean_step and clean_step not in attempted_steps_list:
+                    attempted_steps_list.append(clean_step)
 
             # Check if response actually cites a source
-            # If prompt required citation and model didn't include it, we append a default citation
             if "Source:" not in response_text and retrieved_chunks:
                 source_file = retrieved_chunks[0].get("source", "novasuite_documentation")
                 response_text += f"\n\n[Source: {source_file}]"
 
+            elapsed_time = time.time() - start_time
+            logger.info(
+                f"[RESPONSE] Session={state.get('session_id')} | Persona={persona} | "
+                f"Chunks={len(retrieved_chunks)} | Confidence={retrieval_confidence:.2f} | "
+                f"Time={elapsed_time:.2f}s"
+            )
+
             return {
                 "response": response_text,
-                "attempted_steps": attempted_steps,
-                "escalate": False
+                "attempted_steps": attempted_steps_list,
+                "response_time": elapsed_time
             }
         except Exception as e:
             logger.error(f"Error generating response: {e}")
+            elapsed_time = time.time() - start_time
             return {
+                "response": "I don't have enough information in the knowledge base to answer this accurately.",
+                "attempted_steps": list(state.get("attempted_steps", [])),
+                "response_time": elapsed_time,
                 "escalate": True,
                 "escalation_reason": "response_generation_failure"
             }
 
+_response_node_instance = None
+
 # LangGraph function wrapper
 def response_node(state: dict) -> dict:
-    return ResponseNode().run(state)
+    global _response_node_instance
+    if _response_node_instance is None:
+        _response_node_instance = ResponseNode()
+    return _response_node_instance.run(state)

@@ -14,18 +14,18 @@ class PersonaResult:
 
 class PersonaDetector:
     TECHNICAL_KEYWORDS = [
-        "api", "oauth", "jwt", "401", "403", "stack trace", "endpoint",
-        "token", "config", "debug", "log", "http", "webhook", "ssl", "tls"
+        "api", "oauth", "logs", "webhooks", "jwt", "configurations",
+        "token", "config", "debug", "log", "http", "webhook", "ssl", "tls", "401", "403"
     ]
 
     FRUSTRATED_KEYWORDS = [
-        "nothing works", "i've tried", "broken", "useless", "frustrated",
-        "hours", "still not", "terrible", "why is this", "fed up", "!!!"
+        "nothing works", "terrible", "fed up", "still broken", "hours", "urgent",
+        "broken", "useless", "frustrated", "why is this", "!!!", "password reset", "login failure"
     ]
 
     EXECUTIVE_KEYWORDS = [
-        "sla", "impact", "operations", "business", "when will", "resolution",
-        "timeline", "cost", "executive", "budget", "team", "stakeholders"
+        "impact", "sla", "stakeholders", "timeline", "operations", "contract",
+        "business", "resolution", "cost", "executive", "team"
     ]
 
     def __init__(self):
@@ -55,10 +55,10 @@ class PersonaDetector:
             user_message=message
         )
 
+        llm_result = None
         try:
             response_text = self._call_llm(prompt)
             # Try to parse json from the response
-            # Sometimes LLMs wrap JSON in markdown block ```json ... ```
             json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
             if json_match:
                 data = json.loads(json_match.group(0))
@@ -68,23 +68,47 @@ class PersonaDetector:
                 
                 # Validation
                 if persona in ["TECHNICAL_EXPERT", "FRUSTRATED_USER", "BUSINESS_EXECUTIVE"]:
-                    return PersonaResult(persona, confidence, reasoning)
-            
-            logger.warning(f"Invalid persona format from LLM: {response_text}. Falling back to keyword classification.")
+                    llm_result = PersonaResult(persona, confidence, reasoning)
+            if not llm_result:
+                logger.warning(f"Invalid persona format from LLM: {response_text}.")
         except Exception as e:
-            logger.error(f"Error calling LLM for persona detection: {e}. Falling back to keyword classification.")
+            logger.error(f"Error calling LLM for persona detection: {e}.")
 
-        # Fallback to keyword-based detection
-        return self.keyword_classify(message)
+        # 2. Secondary Layer: Rule-Based Classification
+        rule_result = self.keyword_classify(message)
+
+        # 3. Final Layer: Confidence-Based Arbitration
+        # If LLM succeeded and has high confidence (>= 0.70), we prefer it
+        if llm_result and llm_result.confidence >= 0.70:
+            logger.info(f"[PERSONA] Primary LLM Classification accepted: {llm_result.persona} (conf={llm_result.confidence:.2f})")
+            return llm_result
+
+        # If LLM has low confidence or failed, but rule-based found keywords, arbitrate
+        if rule_result.confidence > 0.50 or "Weighted keyword fallback (scores:" in rule_result.reasoning:
+            # Check if keyword classification is more specific
+            # A rule score > 0 yields a keyword fallback match reasoning
+            if not rule_result.reasoning.startswith("Default classification"):
+                logger.info(f"[PERSONA] Secondary Rule-Based Classification accepted: {rule_result.persona} (reason={rule_result.reasoning})")
+                return rule_result
+
+        # Fallback Arbitration: If LLM succeeded at all, use it; otherwise, use rule-based fallback (which defaults to FRUSTRATED_USER)
+        if llm_result:
+            logger.info(f"[PERSONA] Falling back to low-confidence LLM: {llm_result.persona} (conf={llm_result.confidence:.2f})")
+            return llm_result
+
+        logger.info(f"[PERSONA] Falling back to default: {rule_result.persona}")
+        return rule_result
 
     def keyword_classify(self, message: str) -> PersonaResult:
         msg_lower = message.lower()
-        tech_score = sum(1 for kw in self.TECHNICAL_KEYWORDS if kw in msg_lower)
+        
+        # Weighted scoring: technical and executive terms carry higher weight
+        tech_score = sum(2 for kw in self.TECHNICAL_KEYWORDS if kw in msg_lower)
         frust_score = sum(1 for kw in self.FRUSTRATED_KEYWORDS if kw in msg_lower)
-        exec_score = sum(1 for kw in self.EXECUTIVE_KEYWORDS if kw in msg_lower)
+        exec_score = sum(2 for kw in self.EXECUTIVE_KEYWORDS if kw in msg_lower)
 
-        # Detect manual locks or exclamation marks
-        if "!!!" in message or msg_lower.isupper():
+        # Detect extra emphasis for frustration
+        if "!!!" in message or (message.isupper() and len(message) > 4):
             frust_score += 2
 
         scores = {
@@ -93,19 +117,16 @@ class PersonaDetector:
             "BUSINESS_EXECUTIVE": exec_score
         }
 
-        # Find max score
         max_persona = max(scores, key=scores.get)
         max_score = scores[max_persona]
 
         if max_score == 0:
-            # Default fallback
+            # Default fallback (never UNKNOWN)
             return PersonaResult("FRUSTRATED_USER", 0.5, "Default classification (no keywords matched)")
 
-        # Calculate confidence
         total = sum(scores.values())
         confidence = float(max_score / total) if total > 0 else 0.5
-        # Clamp confidence to reasonable range
-        confidence = max(0.5, min(0.85, confidence))
+        confidence = max(0.5, min(0.95, confidence))
         
-        reasoning = f"Keyword fallback match (scores: tech={tech_score}, frust={frust_score}, exec={exec_score})"
+        reasoning = f"Weighted keyword fallback (scores: tech={tech_score}, frust={frust_score}, exec={exec_score})"
         return PersonaResult(max_persona, confidence, reasoning)

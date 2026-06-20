@@ -1,9 +1,15 @@
 from src.escalation.triggers import EscalationChecker
 from src.escalation.handoff import HandoffBuilder
 from src.agent.state import AgentState
+from src.utils.logger import logger
 
-def escalation_check_node(state: AgentState) -> dict:
-    checker = EscalationChecker()
+_escalation_checker_instance = None
+
+def escalation_evaluation_node(state: AgentState) -> dict:
+    global _escalation_checker_instance
+    if _escalation_checker_instance is None:
+        _escalation_checker_instance = EscalationChecker()
+    checker = _escalation_checker_instance
     
     retrieval_confidence = state.get("retrieval_confidence", 0.0)
     current_message = state.get("current_message", "")
@@ -13,7 +19,7 @@ def escalation_check_node(state: AgentState) -> dict:
     response_text = state.get("response", "")
 
     # Run check
-    escalate = checker.should_escalate(
+    escalate = state.get("escalate", False) or checker.should_escalate(
         retrieval_confidence=retrieval_confidence,
         user_message=current_message,
         turn_count=turn_count,
@@ -22,8 +28,8 @@ def escalation_check_node(state: AgentState) -> dict:
         response_text=response_text
     )
 
-    reason = ""
-    if escalate:
+    reason = state.get("escalation_reason", "")
+    if escalate and not reason:
         # Determine main reason for logging/handoff
         if retrieval_confidence < checker.settings.low_confidence_threshold:
             reason = "low_retrieval_confidence"
@@ -38,13 +44,29 @@ def escalation_check_node(state: AgentState) -> dict:
         else:
             reason = "llm_insufficient_information"
 
+    logger.info(
+        f"[ESCALATION] Session={state.get('session_id')} | Escalate={escalate} | "
+        f"Reason={reason} | Confidence={retrieval_confidence:.2f} | "
+        f"Sentiment={sentiment_scores[-1] if sentiment_scores else 0.0:.2f} | "
+        f"Attempts={resolution_attempts}"
+    )
+
     return {
         "escalate": escalate,
         "escalation_reason": reason
     }
 
-def escalation_node(state: AgentState) -> dict:
-    builder = HandoffBuilder()
+_handoff_builder_instance = None
+
+def human_handoff_node(state: AgentState) -> dict:
+    # Only perform handoff if escalation is required
+    if not state.get("escalate", False):
+        return {}
+
+    global _handoff_builder_instance
+    if _handoff_builder_instance is None:
+        _handoff_builder_instance = HandoffBuilder()
+    builder = _handoff_builder_instance
     
     # Build HandoffSummary JSON
     summary = builder.build(
@@ -60,6 +82,8 @@ def escalation_node(state: AgentState) -> dict:
 
     # Set response to a friendly message for user
     response = "I have escalated your request to a human support agent. They will review the handoff summary and contact you shortly."
+
+    logger.info(f"[HANDOFF] Escalation summary built for Session={state.get('session_id')} with Priority={summary.get('priority')}")
 
     return {
         "handoff_summary": summary,

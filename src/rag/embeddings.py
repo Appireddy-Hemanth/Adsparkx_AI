@@ -10,13 +10,18 @@ class GeminiChromaEmbeddingFunction(EmbeddingFunction):
         # Chroma expects a list of list of floats
         return self.embeddings_model.embed_documents(input)
 
+_embeddings_cache = {}
+
 def get_embeddings(task_type: str = "RETRIEVAL_DOCUMENT"):
     """
     Returns GoogleGenerativeAIEmbeddings configured for specific task types.
     task_type can be 'RETRIEVAL_DOCUMENT' or 'RETRIEVAL_QUERY'.
     """
-    return GoogleGenerativeAIEmbeddings(
-        model=settings.gemini_embedding_model,
-        google_api_key=settings.gemini_api_key,
-        task_type=task_type
-    )
+    global _embeddings_cache
+    if task_type not in _embeddings_cache:
+        _embeddings_cache[task_type] = GoogleGenerativeAIEmbeddings(
+            model=settings.gemini_embedding_model,
+            google_api_key=settings.gemini_api_key,
+            task_type=task_type
+        )
+    return _embeddings_cache[task_type]

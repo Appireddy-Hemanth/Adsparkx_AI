@@ -18,3 +18,4 @@ class AgentState(TypedDict):
     attempted_steps: List[str]
     gemini_daily_calls: int          # Track against 1,500 RPD limit
     rate_limit_warning: bool         # True when >80% of daily quota used
+    response_time: Optional[float]

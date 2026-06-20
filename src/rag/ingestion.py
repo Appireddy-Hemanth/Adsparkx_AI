@@ -117,9 +117,10 @@ def ingest_all():
         doc_type = chunk.metadata.get("doc_type", "article")
         section = chunk.metadata.get("section", "General")
 
-        # Deterministic chunk_id based on source, page, index and content hash
-        hash_val = hashlib.md5(content.encode("utf-8")).hexdigest()[:10]
-        chunk_id = f"{source.replace('.', '_')}_p{page}_c{idx}_{hash_val}"
+        # Purely deterministic chunk_id based on source and content hash (no loop index)
+        hash_input = f"{source}_{content}"
+        hash_val = hashlib.md5(hash_input.encode("utf-8")).hexdigest()[:16]
+        chunk_id = f"chunk_{hash_val}"
         
         ids.append(chunk_id)
         documents.append(content)

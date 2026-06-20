@@ -1,5 +1,4 @@
 import uuid
-from src.sentiment.analyzer import SentimentAnalyzer
 from src.agent.state import AgentState
 
 def input_node(state: AgentState) -> dict:
@@ -10,12 +9,6 @@ def input_node(state: AgentState) -> dict:
     sentiment_scores = list(state.get("sentiment_scores", []))
     attempted_steps = list(state.get("attempted_steps", []))
     session_id = state.get("session_id") or str(uuid.uuid4())
-    
-    # Run sentiment analysis
-    analyzer = SentimentAnalyzer()
-    sentiment_res = analyzer.analyze(current_message)
-    compound_score = sentiment_res.get("compound", 0.0)
-    sentiment_scores.append(compound_score)
     
     # Add user message to history
     messages.append({"role": "user", "content": current_message})

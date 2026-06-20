@@ -58,6 +58,12 @@ sufficient information to answer the question, respond with:
 Let me connect you with a specialist."
 DO NOT invent facts, prices, dates, or policies.
 
+Conversation History:
+{history}
+
+Already Attempted Steps (Do NOT repeat or suggest these steps, offer alternatives if available in context):
+{attempted_steps}
+
 Context from knowledge base:
 {context}
 """
@@ -80,6 +86,12 @@ sufficient information to answer the question, respond with:
 "I don't have enough information in our knowledge base to answer this accurately.
 Let me connect you with a specialist."
 DO NOT invent facts, prices, dates, or policies.
+
+Conversation History:
+{history}
+
+Already Attempted Steps (Do NOT repeat or suggest these steps, offer alternatives if available in context):
+{attempted_steps}
 
 Context from knowledge base:
 {context}
@@ -104,6 +116,12 @@ sufficient information to answer the question, respond with:
 "I don't have enough information in our knowledge base to answer this accurately.
 Let me connect you with a specialist."
 DO NOT invent facts, prices, dates, or policies.
+
+Conversation History:
+{history}
+
+Already Attempted Steps (Do NOT repeat or suggest these steps, offer alternatives if available in context):
+{attempted_steps}
 
 Context from knowledge base:
 {context}

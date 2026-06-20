@@ -17,22 +17,31 @@ class RetrievedChunk:
     text: str
     metadata: dict
     score: float  # Relevance score (normalized to 0-1)
+    confidence_band: str = "LOW"
+
+_chroma_client = None
+_chroma_collection = None
 
 class KBRetriever:
     def __init__(self):
-        self.client = chromadb.PersistentClient(path=settings.chroma_persist_dir)
+        global _chroma_client, _chroma_collection
+        if _chroma_client is None:
+            _chroma_client = chromadb.PersistentClient(path=settings.chroma_persist_dir)
+        self.client = _chroma_client
+        
         self.emb_model = get_embeddings(task_type="RETRIEVAL_QUERY")
         self.emb_fn = GeminiChromaEmbeddingFunction(self.emb_model)
         
-        # Load collection
-        try:
-            self.collection = self.client.get_collection(
-                name=settings.chroma_collection,
-                embedding_function=self.emb_fn
-            )
-        except Exception as e:
-            logger.warning(f"Could not load Chroma collection: {e}. It might not be created yet.")
-            self.collection = None
+        if _chroma_collection is None:
+            try:
+                _chroma_collection = self.client.get_collection(
+                    name=settings.chroma_collection,
+                    embedding_function=self.emb_fn
+                )
+            except Exception as e:
+                logger.warning(f"Could not load Chroma collection: {e}. It might not be created yet.")
+                _chroma_collection = None
+        self.collection = _chroma_collection
 
         # Lazy load CrossEncoder to minimize startup latency
         self._reranker = None
@@ -50,13 +59,15 @@ class KBRetriever:
         return self._reranker
 
     def retrieve(self, query: str, top_k: int = 5) -> list[RetrievedChunk]:
+        global _chroma_collection
         if not self.collection:
             # Re-attempt loading collection
             try:
-                self.collection = self.client.get_collection(
+                _chroma_collection = self.client.get_collection(
                     name=settings.chroma_collection,
                     embedding_function=self.emb_fn
                 )
+                self.collection = _chroma_collection
             except Exception as e:
                 logger.error(f"Failed to load Chroma collection during retrieval: {e}")
                 return []
@@ -82,12 +93,23 @@ class KBRetriever:
         distances = results['distances'][0] if 'distances' in results and results['distances'] else [1.0] * len(documents)
 
         # Map distance to similarity (1 - distance for cosine)
+        seen_texts = set()
         chunks = []
         for doc, meta, dist in zip(documents, metadatas, distances):
-            # Chroma cosine distance ranges from 0 (similar) to 2 (dissimilar)
             # Normalise distance score to a 0-1 confidence range
-            raw_score = max(0.0, 1.0 - dist)
-            chunks.append(RetrievedChunk(text=doc, metadata=meta, score=raw_score))
+            score = max(0.0, min(1.0, 1.0 - dist))
+            
+            # Deduplicate chunks by exact content text
+            normalized_text = doc.strip().lower()
+            if normalized_text in seen_texts:
+                continue
+            seen_texts.add(normalized_text)
+            
+            # Filter low-quality matches (threshold 0.30)
+            if score < 0.30:
+                continue
+                
+            chunks.append(RetrievedChunk(text=doc, metadata=meta, score=score))
 
         # 2. Rerank with Cross-Encoder if available
         if _HAS_CROSS_ENCODER and self.reranker and len(chunks) > 1:
@@ -97,16 +119,22 @@ class KBRetriever:
                 
                 # Pair and sort by rerank score descending
                 for chunk, r_score in zip(chunks, rerank_scores):
-                    # Sigmoid normalization for cross-encoder logits if they are raw scores
-                    # (cross-encoder scores for ms-marco can be negative or positive logits)
+                    # Sigmoid normalization for cross-encoder logits
                     import math
                     sig_score = 1 / (1 + math.exp(-r_score))
                     chunk.score = sig_score
-                
-                chunks.sort(key=lambda x: x.score, reverse=True)
             except Exception as e:
-                logger.error(f"Error during CrossEncoder reranking: {e}. Keeping raw retrieval order.")
-                # Keep raw order but sort by raw score
-                chunks.sort(key=lambda x: x.score, reverse=True)
+                logger.error(f"Error during CrossEncoder reranking: {e}. Keeping raw retrieval scores.")
 
+        # Compute confidence band for all chunks based on final score
+        for chunk in chunks:
+            if chunk.score >= 0.75:
+                chunk.confidence_band = "HIGH"
+            elif chunk.score >= 0.50:
+                chunk.confidence_band = "MEDIUM"
+            else:
+                chunk.confidence_band = "LOW"
+
+        # Ensure chunks are sorted by score descending
+        chunks.sort(key=lambda x: x.score, reverse=True)
         return chunks[:top_k]
